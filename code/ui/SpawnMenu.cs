@@ -2,12 +2,19 @@
 using Sandbox.Tools;
 using Sandbox.UI;
 using Sandbox.UI.Construct;
+using System.Linq;
 
 [Library]
 public partial class SpawnMenu : Panel
 {
 	public static SpawnMenu Instance;
 	readonly Panel toollist;
+	public Panel ToolPanel { get; private set; }
+	public ButtonGroup SpawnMenuLeftTabs;
+	public Panel SpawnMenuLeftBody;
+
+	public bool IgnoreMenuButton = false;
+	private bool IsOpen = false;
 
 	private static ModelList modelList;
 	private bool isSearching;
@@ -20,21 +27,22 @@ public partial class SpawnMenu : Panel
 		{
 			var tabs = left.AddChild<ButtonGroup>();
 			tabs.AddClass( "tabs" );
+			SpawnMenuLeftTabs = tabs;
 
 			var body = left.Add.Panel( "body" );
-
+			SpawnMenuLeftBody = body;
 			{
+				var props = body.AddChild<SpawnList>();
+				tabs.SelectedButton = tabs.AddButtonActive( "#spawnmenu.props", ( b ) => props.SetClass( "active", b ) );
+
 				modelList = body.AddChild<ModelList>();
-				tabs.SelectedButton = tabs.AddButtonActive( "#spawnmenu.modellist", ( b ) => modelList.SetClass( "active", b ) );			
-				
+				tabs.AddButtonActive( "#spawnmenu.modellist", ( b ) => modelList.SetClass( "active", b ) );
+
 				var ents = body.AddChild<EntityList>();
 				tabs.AddButtonActive( "#spawnmenu.entities", ( b ) => ents.SetClass( "active", b ) );
 
 				var npclist = body.AddChild<NpcList>();
 				tabs.AddButtonActive( "#spawnmenu.npclist", ( b ) => npclist.SetClass( "active", b ) );
-				
-				var props = body.AddChild<SpawnList>();
-				tabs.AddButtonActive( "#spawnmenu.props", ( b ) => props.SetClass( "active", b ) );
 			}
 		}
 
@@ -43,7 +51,6 @@ public partial class SpawnMenu : Panel
 			var tabs = right.Add.Panel( "tabs" );
 			{
 				tabs.Add.Button( "#spawnmenu.tools" ).AddClass( "active" );
-				tabs.Add.Button( "#spawnmenu.utility" );
 			}
 			var body = right.Add.Panel( "body" );
 			{
@@ -51,7 +58,7 @@ public partial class SpawnMenu : Panel
 				{
 					RebuildToolList();
 				}
-				body.Add.Panel( "inspector" );
+				ToolPanel = body.Add.Panel( "inspector" );
 			}
 		}
 
@@ -61,63 +68,58 @@ public partial class SpawnMenu : Panel
 	{
 		toollist.DeleteChildren( true );
 
-		foreach ( var entry in TypeLibrary.GetTypes<BaseTool>() )
+		foreach ( var entry in TypeLibrary.GetTypes<BaseTool>().OrderBy( ( x ) => x.Title ) )
 		{
-			if ( entry.Name == "BaseTool" )
+			if ( entry.Name.StartsWith( "Base" ) )
 				continue;
 
 			var button = toollist.Add.Button( entry.Title );
 			button.SetClass( "active", entry.ClassName == ConsoleSystem.GetValue( "tool_current" ) );
 
-			button.AddEventListener( "onclick", () => 
+			button.AddEventListener( "onclick", () =>
 			{
-				SetActiveTool( entry.ClassName );
+				Tool.SetActiveTool( entry.ClassName );
 
 				foreach ( var child in toollist.Children )
 					child.SetClass( "active", child == button );
+				ToolPanel.DeleteChildren( true );
 			} );
 		}
 	}
 
-	void SetActiveTool( string className )
-	{
-		// setting a cvar
-		ConsoleSystem.Run( "tool_current", className );
-
-		// set the active weapon to the toolgun
-		if ( Game.LocalPawn is not Player player ) return;
-		if ( player.Inventory is null ) return;
-
-		// why isn't inventory just an ienumurable wtf
-		for ( int i = 0; i < player.Inventory.Count(); i++ )
-		{
-			var entity = player.Inventory.GetSlot( i );
-			if ( !entity.IsValid() ) continue;
-			if ( entity.ClassName != "weapon_tool" ) continue;
-
-			player.ActiveChildInput = entity;
-		}
-	}
+	private bool menuWasPressed = false;
 
 	public override void Tick()
 	{
 		base.Tick();
-		
-		if( modelList.SearchInput.HasFocus )
+		if ( !IgnoreMenuButton )
 		{
-			isSearching = true;		
+			if ( Input.Pressed( "menu" ) )
+			{
+				IsOpen = true;
+			}
+			if ( menuWasPressed && !Input.Down( "menu" ) )
+			{
+				IsOpen = false;
+			}
 		}
-		else if (isSearching && Input.Pressed( "menu" ))
+		menuWasPressed = Input.Down( "menu" );
+
+		if ( (bool)(modelList?.SearchInput?.HasFocus) )
+		{
+			isSearching = true;
+		}
+		else if ( isSearching && Input.Pressed( "menu" ) )
 		{
 			isSearching = false;
 		}
-		
+
 		UpdateActiveTool();
-		
+
 		if ( isSearching )
 			return;
 
-		Parent.SetClass( "spawnmenuopen", Input.Down( "menu" ) );
+		Parent.SetClass( "spawnmenuopen", IsOpen );
 
 	}
 
@@ -133,6 +135,7 @@ public partial class SpawnMenu : Panel
 				child.SetClass( "active", tool != null && button.Text == tool.Title );
 			}
 		}
+		Parent.SetClass( "spawnmenuopen", Input.Down( "menu" ) );
 	}
 
 	public override void OnHotloaded()

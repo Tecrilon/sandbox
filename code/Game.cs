@@ -1,18 +1,39 @@
-﻿using Sandbox;
-using System.Linq;
-using System.Threading.Tasks;
+global using System.Threading.Tasks;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System;
+global using Sandbox;
+using Sandmod.Permission;
 
 partial class SandboxGame : GameManager
 {
-	public SandboxGame()
+	private SandboxHud _sandboxHud;
+
+	[Event.Hotload]
+	public void OnReloaded()
 	{
-		if ( Game.IsServer )
-		{
-			// Create the HUD
-			_ = new SandboxHud();
-		}
+		ReloadManager.ReloadAutoload();
 	}
 
+	public SandboxGame()
+	{
+		Log.Info( "Init SandboxPlus" );
+		if ( Game.IsServer )
+		{
+			Log.Info( "[Server] initting HUD" );
+			// Create the HUD
+			_sandboxHud = new SandboxHud();
+		}
+
+		ReloadManager.ReloadAutoload();
+		Event.Run( "game.init" );
+	}
+	~SandboxGame()
+	{
+		_sandboxHud?.Delete();
+	}
+
+	[Event( "client.join" )]
 	public override void ClientJoined( IClient cl )
 	{
 		base.ClientJoined( cl );
@@ -47,6 +68,12 @@ partial class SandboxGame : GameManager
 
 		if ( ConsoleSystem.Caller == null )
 			return;
+
+		if ( !owner.Client.HasPermission( "spawn.prop_physics" ) )
+		{
+			HintFeed.AddHint( To.Single( owner ), "block", "You don't have permission to spawn props" );
+			return;
+		}
 
 		var tr = Trace.Ray( owner.EyePosition, owner.EyePosition + owner.EyeRotation.Forward * 500 )
 			.UseHitboxes()
@@ -84,8 +111,7 @@ partial class SandboxGame : GameManager
 		{
 			ent.SetupPhysicsFromOBB( PhysicsMotionType.Dynamic, ent.CollisionBounds.Mins, ent.CollisionBounds.Maxs );
 		}
-
-		Sandbox.Services.Stats.Increment( owner.Client, "spawn.model", 1, modelname );
+		Event.Run( "entity.spawned", ent, owner );
 	}
 
 	static async Task<string> SpawnPackageModel( string packageName, Vector3 pos, Rotation rotation, Entity source )
@@ -98,13 +124,18 @@ partial class SandboxGame : GameManager
 		}
 
 		if ( !source.IsValid ) return null; // source entity died or disconnected or something
+		if ( !package.IsMounted() && source is Player player && !player.Client.HasPermission( $"package.mount.asset.{packageName}" ) )
+		{
+			HintFeed.AddHint( To.Single( player ), "block", "You don't have permission to mount Cloud models" );
+			return null;
+		}
 
 		var model = package.GetMeta( "PrimaryAsset", "models/dev/error.vmdl" );
 		var mins = package.GetMeta( "RenderMins", Vector3.Zero );
 		var maxs = package.GetMeta( "RenderMaxs", Vector3.Zero );
 
 		// downloads if not downloads, mounts if not mounted
-		await package.MountAsync();
+		await package.MountAsync( false );
 
 		return model;
 	}
@@ -124,7 +155,13 @@ partial class SandboxGame : GameManager
 		if ( !TypeLibrary.HasAttribute<SpawnableAttribute>( entityType ) )
 			return;
 
-		var tr = Trace.Ray( owner.EyePosition, owner.EyePosition + owner.EyeRotation.Forward * 200 )
+		if ( !owner.Client.HasPermission( $"spawn.{entName}" ) )
+		{
+			HintFeed.AddHint( To.Single( owner ), "block", $"You don't have permission to spawn {entName}" );
+			return;
+		}
+
+		var tr = Trace.Ray( owner.EyePosition, owner.EyePosition + owner.EyeRotation.Forward * 4096 )
 			.UseHitboxes()
 			.Ignore( owner )
 			.Size( 2 )
@@ -138,10 +175,11 @@ partial class SandboxGame : GameManager
 		}
 
 		ent.Position = tr.EndPosition;
-		ent.Rotation = Rotation.From( new Angles( 0, owner.EyeRotation.Angles().yaw, 0 ) );
+		ent.Rotation = Rotation.From( new Angles( 0, owner.EyeRotation.Angles().yaw + 180, 0 ) );
 
-		//Log.Info( $"ent: {ent}" );
+		Event.Run( "entity.spawned", ent, owner );
 	}
+
 
 	[ClientRpc]
 	public override void OnKilledMessage( long leftid, string left, long rightid, string right, string method )
@@ -166,15 +204,17 @@ partial class SandboxGame : GameManager
 			return;
 		}
 
+		if ( !package.IsMounted() && !owner.Client.HasPermission( $"package.mount.code.{fullIdent}" ) )
+		{
+			Log.Warning( $"Player not allowed to mount package {fullIdent}" );
+			HintFeed.AddHint( To.Single( owner ), "block", $"You don't have permission to mount Cloud package {fullIdent}" );
+
+			return;
+		}
+
 		Log.Info( $"Spawn package {package.Title}" );
 
 		var entityname = package.GetMeta( "PrimaryAsset", "" );
-
-		if ( string.IsNullOrEmpty( entityname ) )
-		{
-			Log.Warning( $"{package.FullIdent} doesn't have a PrimaryAsset key" );
-			return;
-		}
 
 		if ( !CanSpawnPackage( package ) )
 		{
@@ -183,6 +223,16 @@ partial class SandboxGame : GameManager
 		}
 
 		await package.MountAsync( true );
+
+		if ( string.IsNullOrEmpty( entityname ) )
+		{
+			Log.Info( "Mounted package (without PrimaryAsset key) " + package.Title );
+
+			Event.Run( "package.mounted" );
+			PostSpawnPackage();
+
+			return;
+		}
 
 		Log.Info( $"Spawning Entity: {entityname}" );
 
@@ -206,6 +256,13 @@ partial class SandboxGame : GameManager
 
 		ent.Position = tr.EndPosition;
 		ent.Rotation = Rotation.From( new Angles( 0, owner.EyeRotation.Angles().yaw, 0 ) );
+		Event.Run( "entity.spawned", ent, owner );
+	}
+
+	[ClientRpc]
+	public static void PostSpawnPackage()
+	{
+		Event.Run( "package.mounted" );
 	}
 
 	static bool CanSpawnPackage( Package package )

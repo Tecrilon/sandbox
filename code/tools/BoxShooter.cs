@@ -13,11 +13,11 @@
 			{
 				if ( Input.Pressed( "reload" ) )
 				{
-					var tr = Trace.Ray( Owner.EyePosition, Owner.EyePosition + Owner.EyeRotation.Forward * 4000 ).Ignore( Owner ).Run();
+					var tr = DoTrace( false );
 
-					if ( tr.Entity is Prop prop && !string.IsNullOrEmpty( prop.GetModelName() ) )
+					if ( tr.Entity is ModelEntity ent && !string.IsNullOrEmpty( ent.GetModelName() ) )
 					{
-						modelToShoot = prop.GetModelName();
+						modelToShoot = ent.GetModelName();
 						Log.Trace( $"Shooting model: {modelToShoot}" );
 					}
 				}
@@ -46,7 +46,7 @@
 			ent.SetModel( modelToShoot );
 			ent.Velocity = Owner.EyeRotation.Forward * 1000;
 
-			Services.Stats.Increment( Owner.Client, "box.shoot", 1 );
+			Event.Run( "entity.spawned", ent, Owner );
 		}
 	}
 }

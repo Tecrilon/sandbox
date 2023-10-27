@@ -1,7 +1,8 @@
 ﻿using Sandbox;
+using Sandmod.Permission;
 using System.Numerics;
 
-partial class SandboxPlayer : Player
+public partial class SandboxPlayer : Player
 {
 	private TimeSince timeSinceDropped;
 	private TimeSince timeSinceJumpReleased;
@@ -16,9 +17,11 @@ partial class SandboxPlayer : Player
 	/// </summary>
 	public ClothingContainer Clothing = new();
 
-	/// <summary>
-	/// Default init
-	/// </summary>
+	public delegate void OnSimulateHandler( SandboxPlayer player );
+	public event OnSimulateHandler OnSimulate;
+
+	public bool SuppressScrollWheelInventory { get; set; } = false;
+
 	public SandboxPlayer()
 	{
 		Inventory = new Inventory( this );
@@ -37,7 +40,7 @@ partial class SandboxPlayer : Player
 	{
 		SetModel( "models/citizen/citizen.vmdl" );
 
-		Controller = new WalkController
+		Controller = new PlayerWalkController
 		{
 			WalkSpeed = 60f,
 			DefaultSpeed = 180.0f
@@ -61,10 +64,7 @@ partial class SandboxPlayer : Player
 		Inventory.Add( new Tool() );
 		Inventory.Add( new Pistol() );
 		Inventory.Add( new MP5() );
-		Inventory.Add( new Flashlight() );
 		Inventory.Add( new Fists() );
-
-        Sandbox.Services.Stats.Increment( Client, "respawn", 1 );
 
 		base.Respawn();
 	}
@@ -94,6 +94,8 @@ partial class SandboxPlayer : Player
 
 		Inventory.DropActive();
 		Inventory.DeleteContents();
+
+		Event.Run( "player.killed", this );
 	}
 
 	public override void TakeDamage( DamageInfo info )
@@ -136,8 +138,11 @@ partial class SandboxPlayer : Player
 			SimulateAnimation( controller );
 		}
 
+		UpdateFlashlight();
 		TickPlayerUse();
 		SimulateActiveChild( cl, ActiveChild );
+		OnSimulate?.Invoke( this );
+		Event.Run( "player.simulate", this );
 
 		if ( Input.Pressed( "view" ) )
 		{
@@ -165,14 +170,7 @@ partial class SandboxPlayer : Player
 		{
 			if ( timeSinceJumpReleased < 0.3f )
 			{
-				if ( DevController is NoclipController )
-				{
-					DevController = null;
-				}
-				else
-				{
-					DevController = new NoclipController();
-				}
+				ToggleNoclip();
 			}
 
 			timeSinceJumpReleased = 0;
@@ -180,14 +178,7 @@ partial class SandboxPlayer : Player
 
 		if ( Input.Released( "noclip" ) )
 		{
-			if ( DevController is NoclipController )
-			{
-				DevController = null;
-			}
-			else
-			{
-				DevController = new NoclipController();
-			}
+			ToggleNoclip();
 		}
 
 		if ( InputDirection.y != 0 || InputDirection.x != 0f )
@@ -201,14 +192,19 @@ partial class SandboxPlayer : Player
 	{
 		if ( ConsoleSystem.Caller.Pawn is SandboxPlayer basePlayer )
 		{
-			if ( basePlayer.DevController is NoclipController )
-			{
-				basePlayer.DevController = null;
-			}
-			else
-			{
-				basePlayer.DevController = new NoclipController();
-			}
+			basePlayer.ToggleNoclip();
+		}
+	}
+
+	public void ToggleNoclip()
+	{
+		if ( DevController is NoclipController )
+		{
+			DevController = null;
+		}
+		else if ( Client.HasPermission( "noclip" ) )
+		{
+			DevController = new NoclipController();
 		}
 	}
 
@@ -340,6 +336,15 @@ partial class SandboxPlayer : Player
 			Camera.Position = EyePosition;
 			Camera.FirstPersonViewer = this;
 			Camera.Main.SetViewModelCamera( 90f );
+		}
+	}
+
+	[Event( "entity.spawned" )]
+	public static void OnSpawned( Entity spawned, Entity owner )
+	{
+		if ( owner is Player player )
+		{
+			spawned.SetPlayerOwner( player );
 		}
 	}
 }

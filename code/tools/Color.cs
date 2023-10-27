@@ -1,10 +1,14 @@
-﻿using System;
+﻿using Sandbox;
+using Sandbox.UI;
 
 namespace Sandbox.Tools
 {
 	[Library( "tool_color", Title = "Color", Description = "Change render color and alpha of entities", Group = "construction" )]
 	public partial class ColorTool : BaseTool
 	{
+		[ConVar.ClientData( "tool_color_color" )]
+		public static string _ { get; set; } = "";
+
 		public override void Simulate()
 		{
 			if ( !Game.IsServer )
@@ -14,8 +18,6 @@ namespace Sandbox.Tools
 			{
 				var startPos = Owner.EyePosition;
 				var dir = Owner.EyeRotation.Forward;
-
-				var color = Color.Random;
 
 				if ( Input.Pressed( "attack1" ) )
 				{
@@ -27,9 +29,9 @@ namespace Sandbox.Tools
 					if ( tr.Entity is not ModelEntity modelEnt )
 						return;
 
-					modelEnt.RenderColor = Color.Random;
+					modelEnt.RenderColor = GetConvarValue( "tool_color_color" );
 
-					CreateHitEffects( tr.EndPosition );
+					CreateHitEffects( tr.EndPosition, tr.Normal );
 				}
 				//prob awful way of doing it.
 				if ( Input.Pressed( "attack2" ) )
@@ -44,9 +46,20 @@ namespace Sandbox.Tools
 
 					modelEnt.RenderColor = Color.White;
 
-					CreateHitEffects( tr.EndPosition );
+					CreateHitEffects( tr.EndPosition, tr.Normal );
 				}
+			}
+		}
+
+		public override void CreateToolPanel()
+		{
+			if ( Game.IsClient )
+			{
+				var colorSelector = new ColorSelector();
+				SpawnMenu.Instance?.ToolPanel?.AddChild( colorSelector );
 			}
 		}
 	}
 }
+
+

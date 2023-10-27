@@ -1,17 +1,21 @@
 {
-  "Title": "Sandbox Game",
+  "Title": "SandboxPlus",
   "Type": "game",
-  "Org": "facepunch",
-  "Ident": "sandbox",
-  "Tags": "",
+  "Org": "wiremod",
+  "Ident": "sandboxplus",
+  "Tags": "sandbox spawnmenu tools constraints wirebox",
   "Schema": 1,
   "HasAssets": true,
   "AssetsPath": "",
-  "Resources": "*.vmdl_c.png\nentity/*.png",
+  "Resources": "*.vmdl_c.png\nentity/*.png\n*.spawnlist\n",
   "MenuResources": "/menu/*",
   "HasCode": true,
   "CodePath": "code",
-  "PackageReferences": [],
+  "PackageReferences": [
+    "wiremod.wirelib",
+    "wiremod.ndata",
+    "sandmod.permission"
+  ],
   "EditorReferences": null,
   "Metadata": {
     "MapList": [
@@ -137,11 +141,14 @@
     },
     "DefaultLeaderboards": null,
     "Summary": "Create and play in your own sandbox mode.",
-    "Description": "This game lets you spawn props and ragdolls and create entities to play with. It\u0027s like Garry\u0027s Mod.\r\n\r\nThis is a bit of a sandbox itself. This is not the final sandbox gamemode. All of this code will likely be thrown away and re-written when we come to do the sandbox gamemode proper.",
+    "Description": "This game lets you spawn props, and constrain them into cars and forts. It\u0027s like Garry\u0027s Mod.",
     "Public": true,
     "ReplaceTags": "sandbox game dynamic spawnmenu physgun",
     "CsProjName": "",
-    "ControlModes": {},
+    "ControlModes": {
+      "Keyboard": true,
+      "Gamepad": true
+    },
     "InputSettings": {
       "Actions": [
         {
@@ -197,6 +204,11 @@
           "Name": "attack2",
           "KeyboardCode": "mouse2",
           "GamepadCode": "LeftTrigger",
+          "GroupName": "Actions"
+        },
+        {
+          "Name": "attack3",
+          "KeyboardCode": "mouse3",
           "GroupName": "Actions"
         },
         {
@@ -314,10 +326,47 @@
           "Name": "Noclip",
           "KeyboardCode": "N",
           "GroupName": "Movement"
+        },
+        {
+          "Name": "Undo",
+          "KeyboardCode": "Z",
+          "GroupName": "Other"
         }
       ]
     },
     "HttpAllowList": null,
-    "TickRate": 50
+    "TickRate": 50,
+    "LaunchConfigs": [
+      {
+        "Name": "Wire",
+        "GameIdent": "wiremod.sandboxplus#local",
+        "MapName": "facepunch.square",
+        "MaxPlayers": 1,
+        "GameSettings": {},
+        "Addons": "wiremod.wireboxaddon#local; wiremod.sbox_tool_auto",
+        "PreLaunchCommand": "",
+        "PostLaunchCommand": ""
+      },
+      {
+        "Name": "WireGates",
+        "GameIdent": "wiremod.sandboxplus#local",
+        "MapName": "facepunch.square",
+        "MaxPlayers": 1,
+        "GameSettings": {},
+        "Addons": "katka.stargateaddon#local;wiremod.wireboxaddon#local;",
+        "PreLaunchCommand": "",
+        "PostLaunchCommand": ""
+      },
+      {
+        "Name": "No Addons",
+        "GameIdent": "wiremod.sandboxplus#local",
+        "MapName": "facepunch.square",
+        "MaxPlayers": 1,
+        "GameSettings": {},
+        "Addons": "",
+        "PreLaunchCommand": "",
+        "PostLaunchCommand": ""
+      }
+    ]
   }
 }
