@@ -1,4 +1,7 @@
-namespace Sandbox;
+using Sandbox;
+
+
+namespace MyGame;
 
 public partial class Chat
 {
@@ -14,7 +17,7 @@ public partial class Chat
 		}
 	}
 
-	[ConCmd.Server( "sandbox_say" )]
+	[ConCmd.Server( "say_somethink" )]
 	public static void Say( string message )
 	{
 		if ( !ConsoleSystem.Caller.IsValid() ) return;
@@ -23,7 +26,6 @@ public partial class Chat
 		if ( message.Contains( '\n' ) || message.Contains( '\r' ) )
 			return;
 
-		Event.Run( "client.say", ConsoleSystem.Caller, message );
 		Log.Info( $"{ConsoleSystem.Caller}: {message}" );
 		AddChatEntry( To.Everyone, ConsoleSystem.Caller.Name, message, ConsoleSystem.Caller.SteamId );
 	}
